@@ -59,14 +59,19 @@ app.get('/download', async (req, res) => {
   res.send(html);
 });
 
-// Dynamic OG image for link previews
-app.get('/api/og', (req, res) => {
-  const ref = req.query.ref || '';
-  const username = req.query.u || null;
-  const svg = generateOGImage(ref, username);
-  res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.send(svg);
+// Dynamic OG image for link previews (PNG via Satori + resvg)
+app.get('/api/og', async (req, res) => {
+  try {
+    const ref = req.query.ref || '';
+    const username = req.query.u || null;
+    const png = await generateOGImage(ref, username);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(png);
+  } catch (err) {
+    console.error('OG image error:', err);
+    res.status(500).send('Failed to generate image');
+  }
 });
 
 // Root — same as /download (no referral)

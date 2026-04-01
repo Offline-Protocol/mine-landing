@@ -1,73 +1,262 @@
-/**
- * Dynamic OG image generator
- * Returns an SVG that social platforms render as the link preview card
- *
- * Usage: /api/og?ref=CODE&u=username
- */
-function generateOGImage(referralCode, username) {
+const satori = require('satori');
+const { Resvg } = require('@resvg/resvg-js');
+const fs = require('fs');
+const path = require('path');
+
+// Load a font for Satori (it requires explicit font data)
+// Use Inter from Google Fonts bundled locally
+let fontData = null;
+
+async function loadFont() {
+  if (fontData) return fontData;
+  // Try local font first, fall back to fetching
+  const localPath = path.join(__dirname, '..', 'fonts', 'Inter-Bold.ttf');
+  if (fs.existsSync(localPath)) {
+    fontData = fs.readFileSync(localPath);
+  } else {
+    // Fetch Inter Bold from Google Fonts
+    const resp = await fetch('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf');
+    fontData = Buffer.from(await resp.arrayBuffer());
+    // Cache locally
+    const fontsDir = path.join(__dirname, '..', 'fonts');
+    if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir);
+    fs.writeFileSync(localPath, fontData);
+  }
+  return fontData;
+}
+
+let fontDataRegular = null;
+
+async function loadFontRegular() {
+  if (fontDataRegular) return fontDataRegular;
+  const localPath = path.join(__dirname, '..', 'fonts', 'Inter-Regular.ttf');
+  if (fs.existsSync(localPath)) {
+    fontDataRegular = fs.readFileSync(localPath);
+  } else {
+    const resp = await fetch('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf');
+    fontDataRegular = Buffer.from(await resp.arrayBuffer());
+    const fontsDir = path.join(__dirname, '..', 'fonts');
+    if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir);
+    fs.writeFileSync(localPath, fontDataRegular);
+  }
+  return fontDataRegular;
+}
+
+async function generateOGImage(referralCode, username) {
   const hasReferral = referralCode && referralCode.length > 0;
   const displayName = username ? `@${username}` : null;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#000000"/>
-      <stop offset="100%" style="stop-color:#0a0a0a"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#2F66F6"/>
-      <stop offset="50%" style="stop-color:#4FFFA8"/>
-      <stop offset="100%" style="stop-color:#00F0FF"/>
-    </linearGradient>
-  </defs>
+  const bold = await loadFont();
+  const regular = await loadFontRegular();
 
-  <!-- Background -->
-  <rect width="1200" height="630" fill="url(#bg)"/>
-
-  <!-- Top accent line -->
-  <rect x="0" y="0" width="1200" height="4" fill="url(#accent)"/>
-
-  <!-- Subtle glow -->
-  <circle cx="200" cy="150" r="300" fill="#2F66F6" opacity="0.06"/>
-  <circle cx="900" cy="500" r="250" fill="#4FFFA8" opacity="0.04"/>
-
-  <!-- App name -->
-  <text x="80" y="200" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="72" font-weight="700" fill="#FFFFFF">Mine</text>
-  <text x="80" y="245" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="24" fill="#8E8E93" font-weight="400">by Offline Protocol</text>
-
-  <!-- Main message -->
-  ${hasReferral && displayName
-    ? `<text x="80" y="340" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">${displayName} invited you to</text>
-       <text x="80" y="390" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">help build the world's largest</text>
-       <text x="80" y="440" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">mesh network.</text>`
+  const inviteText = hasReferral && displayName
+    ? `${displayName} invited you to help build the world's largest mesh network.`
     : hasReferral
-    ? `<text x="80" y="340" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">You've been invited to help</text>
-       <text x="80" y="390" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">build the world's largest</text>
-       <text x="80" y="440" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">mesh network.</text>`
-    : `<text x="80" y="340" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">Help build the world's largest</text>
-       <text x="80" y="390" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="36" font-weight="600" fill="#FFFFFF">mesh network.</text>`
-  }
+    ? "You've been invited to help build the world's largest mesh network."
+    : "Help build the world's largest mesh network.";
 
-  <!-- Feature pills -->
-  <rect x="80" y="490" rx="8" ry="8" width="120" height="36" fill="#1E1E1E"/>
-  <text x="140" y="514" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="14" fill="#2F66F6" text-anchor="middle" font-weight="600">Mesh</text>
+  // Satori uses React-like JSX objects (as plain objects)
+  const markup = {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#000000',
+        padding: '60px 70px',
+        fontFamily: 'Inter',
+      },
+      children: [
+        // Top accent bar
+        {
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #2F66F6, #4FFFA8, #00F0FF)',
+            },
+          },
+        },
+        // App identity row
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              marginBottom: '40px',
+            },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '14px',
+                    backgroundColor: '#1E1E1E',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '28px',
+                    fontWeight: 700,
+                    color: '#2F66F6',
+                    border: '1px solid #2C2C2E',
+                  },
+                  children: 'M',
+                },
+              },
+              {
+                type: 'div',
+                props: {
+                  style: { display: 'flex', flexDirection: 'column' },
+                  children: [
+                    {
+                      type: 'div',
+                      props: {
+                        style: { fontSize: '24px', fontWeight: 700, color: '#FFFFFF' },
+                        children: 'Mine',
+                      },
+                    },
+                    {
+                      type: 'div',
+                      props: {
+                        style: { fontSize: '16px', color: '#8E8E93', fontWeight: 400 },
+                        children: 'by Offline Protocol',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        // Main invite text
+        {
+          type: 'div',
+          props: {
+            style: {
+              fontSize: '42px',
+              fontWeight: 700,
+              color: '#FFFFFF',
+              lineHeight: 1.25,
+              marginBottom: '40px',
+              maxWidth: '900px',
+            },
+            children: inviteText,
+          },
+        },
+        // Spacer
+        { type: 'div', props: { style: { flex: 1 } } },
+        // Bottom row: feature pills + referral code
+        {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            },
+            children: [
+              // Feature pills
+              ...[
+                { label: 'Mesh', color: '#2F66F6' },
+                { label: 'Missions', color: '#32D74B' },
+                { label: 'Points', color: '#00F0FF' },
+              ].map(f => ({
+                type: 'div',
+                props: {
+                  style: {
+                    backgroundColor: '#1E1E1E',
+                    borderRadius: '8px',
+                    padding: '8px 20px',
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: f.color,
+                  },
+                  children: f.label,
+                },
+              })),
+              // Spacer
+              { type: 'div', props: { style: { flex: 1 } } },
+              // Referral code
+              ...(hasReferral ? [{
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    backgroundColor: 'rgba(47, 102, 246, 0.1)',
+                    border: '1px solid rgba(47, 102, 246, 0.2)',
+                    borderRadius: '10px',
+                    padding: '8px 18px',
+                  },
+                  children: [
+                    {
+                      type: 'span',
+                      props: {
+                        style: { fontSize: '13px', color: '#8E8E93', fontWeight: 500 },
+                        children: 'CODE',
+                      },
+                    },
+                    {
+                      type: 'span',
+                      props: {
+                        style: {
+                          fontSize: '20px',
+                          fontWeight: 700,
+                          color: '#2F66F6',
+                          letterSpacing: '2px',
+                        },
+                        children: referralCode,
+                      },
+                    },
+                  ],
+                },
+              }] : []),
+            ],
+          },
+        },
+        // Bottom accent bar
+        {
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #2F66F6, #4FFFA8, #00F0FF)',
+            },
+          },
+        },
+      ],
+    },
+  };
 
-  <rect x="216" y="490" rx="8" ry="8" width="120" height="36" fill="#1E1E1E"/>
-  <text x="276" y="514" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="14" fill="#32D74B" text-anchor="middle" font-weight="600">Missions</text>
+  const svg = await satori(markup, {
+    width: 1200,
+    height: 630,
+    fonts: [
+      { name: 'Inter', data: bold, weight: 700, style: 'normal' },
+      { name: 'Inter', data: regular, weight: 400, style: 'normal' },
+    ],
+  });
 
-  <rect x="352" y="490" rx="8" ry="8" width="120" height="36" fill="#1E1E1E"/>
-  <text x="412" y="514" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="14" fill="#00F0FF" text-anchor="middle" font-weight="600">Points</text>
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: 'width', value: 1200 },
+  });
 
-  ${hasReferral ? `
-  <!-- Referral code -->
-  <rect x="80" y="550" rx="8" ry="8" width="200" height="36" fill="rgba(47,102,246,0.1)" stroke="#2F66F6" stroke-width="1" stroke-opacity="0.2"/>
-  <text x="100" y="574" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif" font-size="12" fill="#8E8E93" font-weight="500">CODE</text>
-  <text x="145" y="574" font-family="'SF Mono', Menlo, monospace" font-size="16" fill="#2F66F6" font-weight="700" letter-spacing="2">${referralCode}</text>
-  ` : ''}
-
-  <!-- Bottom border -->
-  <rect x="0" y="626" width="1200" height="4" fill="url(#accent)"/>
-</svg>`;
+  return resvg.render().asPng();
 }
 
 module.exports = { generateOGImage };
