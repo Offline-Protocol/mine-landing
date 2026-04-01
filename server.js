@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { buildReferralPage, escapeHtml } = require('./lib/referral-page');
+const { generateOGImage } = require('./api/og-image');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,16 @@ app.get('/download', async (req, res) => {
   const html = buildReferralPage(ref, referrerUsername);
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
+});
+
+// Dynamic OG image for link previews
+app.get('/api/og', (req, res) => {
+  const ref = req.query.ref || '';
+  const username = req.query.u || null;
+  const svg = generateOGImage(ref, username);
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(svg);
 });
 
 // Root — same as /download (no referral)
