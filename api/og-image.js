@@ -1,53 +1,72 @@
-const satori = require('satori');
+let satori;
+async function getSatori() {
+  if (!satori) {
+    const mod = await import('satori');
+    satori = mod.default || mod;
+  }
+  return satori;
+}
 const { Resvg } = require('@resvg/resvg-js');
 const fs = require('fs');
 const path = require('path');
 
-// Load a font for Satori (it requires explicit font data)
-// Use Inter from Google Fonts bundled locally
-let fontData = null;
+// Load fonts
+let fontBold = null;
+let fontRegular = null;
 
-async function loadFont() {
-  if (fontData) return fontData;
-  // Try local font first, fall back to fetching
-  const localPath = path.join(__dirname, '..', 'fonts', 'Inter-Bold.ttf');
-  if (fs.existsSync(localPath)) {
-    fontData = fs.readFileSync(localPath);
+async function loadFonts() {
+  if (fontBold && fontRegular) return;
+  const fontsDir = path.join(__dirname, '..', 'fonts');
+  if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir);
+
+  // Bold
+  const boldPath = path.join(fontsDir, 'Inter-Bold.ttf');
+  if (fs.existsSync(boldPath)) {
+    fontBold = fs.readFileSync(boldPath);
   } else {
-    // Fetch Inter Bold from Google Fonts
     const resp = await fetch('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf');
-    fontData = Buffer.from(await resp.arrayBuffer());
-    // Cache locally
-    const fontsDir = path.join(__dirname, '..', 'fonts');
-    if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir);
-    fs.writeFileSync(localPath, fontData);
+    fontBold = Buffer.from(await resp.arrayBuffer());
+    fs.writeFileSync(boldPath, fontBold);
   }
-  return fontData;
-}
 
-let fontDataRegular = null;
-
-async function loadFontRegular() {
-  if (fontDataRegular) return fontDataRegular;
-  const localPath = path.join(__dirname, '..', 'fonts', 'Inter-Regular.ttf');
-  if (fs.existsSync(localPath)) {
-    fontDataRegular = fs.readFileSync(localPath);
+  // Regular
+  const regPath = path.join(fontsDir, 'Inter-Regular.ttf');
+  if (fs.existsSync(regPath)) {
+    fontRegular = fs.readFileSync(regPath);
   } else {
     const resp = await fetch('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf');
-    fontDataRegular = Buffer.from(await resp.arrayBuffer());
-    const fontsDir = path.join(__dirname, '..', 'fonts');
-    if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir);
-    fs.writeFileSync(localPath, fontDataRegular);
+    fontRegular = Buffer.from(await resp.arrayBuffer());
+    fs.writeFileSync(regPath, fontRegular);
   }
-  return fontDataRegular;
 }
 
+// Load app icon as base64 data URI for embedding in Satori
+let iconDataUri = null;
+function getIconDataUri() {
+  if (iconDataUri) return iconDataUri;
+  const iconPath = path.join(__dirname, '..', 'public', 'icon-sm.png');
+  if (fs.existsSync(iconPath)) {
+    const data = fs.readFileSync(iconPath);
+    iconDataUri = `data:image/png;base64,${data.toString('base64')}`;
+  }
+  return iconDataUri;
+}
+
+// Inline SVG icons matching Ionicons used in the app
+const ICONS = {
+  // globe-outline
+  globe: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20"><path d="M256 48C141.13 48 48 141.13 48 256s93.13 208 208 208 208-93.13 208-208S370.87 48 256 48z" fill="none" stroke="#2F66F6" stroke-miterlimit="10" stroke-width="32"/><path d="M256 48c-58.07 0-112.67 93.13-112.67 208S197.93 464 256 464s112.67-93.13 112.67-208S314.07 48 256 48z" fill="none" stroke="#2F66F6" stroke-miterlimit="10" stroke-width="32"/><path d="M117.33 117.33c38.24 27.15 86.38 43.34 138.67 43.34s100.43-16.19 138.67-43.34M394.67 394.67c-38.24-27.15-86.38-43.34-138.67-43.34s-100.43 16.19-138.67 43.34" fill="none" stroke="#2F66F6" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="#2F66F6" stroke-miterlimit="10" stroke-width="32" d="M256 48v416M464 256H48"/></svg>`,
+  // flag-outline
+  flag: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20"><path d="M80 464V68.14a8 8 0 014-6.9C91.81 56.06 112.92 48 160 48c64 0 145 46 208 46 28.71 0 42.19-7.4 52.16-14.31A8 8 0 01432 86.09V303.9a8 8 0 01-3.88 6.86C419.93 315.88 399.64 320 368 320c-60.35 0-145-46-208-46-36 0-58.25 5.49-72 10.8" fill="none" stroke="#32D74B" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32"/><path fill="none" stroke="#32D74B" stroke-linecap="round" stroke-miterlimit="10" stroke-width="32" d="M80 48v416"/></svg>`,
+  // diamond-outline
+  diamond: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20"><path d="M35.42 188.21l207.75 269.46a16.17 16.17 0 0025.66 0l207.75-269.46a16.52 16.52 0 00.95-18.75L407.06 55.71A16.22 16.22 0 00393.27 48H118.73a16.22 16.22 0 00-13.79 7.71L34.47 169.46a16.52 16.52 0 00.95 18.75z" fill="none" stroke="#00F0FF" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path fill="none" stroke="#00F0FF" stroke-linecap="round" stroke-linejoin="round" stroke-width="32" d="M48 176h416M256 48l-64 128 64 288 64-288-64-128M145 48l-32 128M367 48l32 128"/></svg>`,
+};
+
 async function generateOGImage(referralCode, username) {
+  await loadFonts();
+
   const hasReferral = referralCode && referralCode.length > 0;
   const displayName = username ? `@${username}` : null;
-
-  const bold = await loadFont();
-  const regular = await loadFontRegular();
 
   const inviteText = hasReferral && displayName
     ? `${displayName} invited you to help build the world's largest mesh network.`
@@ -55,7 +74,8 @@ async function generateOGImage(referralCode, username) {
     ? "You've been invited to help build the world's largest mesh network."
     : "Help build the world's largest mesh network.";
 
-  // Satori uses React-like JSX objects (as plain objects)
+  const iconUri = getIconDataUri();
+
   const markup = {
     type: 'div',
     props: {
@@ -69,21 +89,7 @@ async function generateOGImage(referralCode, username) {
         fontFamily: 'Inter',
       },
       children: [
-        // Top accent bar
-        {
-          type: 'div',
-          props: {
-            style: {
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '4px',
-              background: 'linear-gradient(90deg, #2F66F6, #4FFFA8, #00F0FF)',
-            },
-          },
-        },
-        // App identity row
+        // App identity row with real icon
         {
           type: 'div',
           props: {
@@ -94,25 +100,16 @@ async function generateOGImage(referralCode, username) {
               marginBottom: '40px',
             },
             children: [
-              {
-                type: 'div',
+              // App icon (real PNG)
+              ...(iconUri ? [{
+                type: 'img',
                 props: {
-                  style: {
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '14px',
-                    backgroundColor: '#1E1E1E',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '28px',
-                    fontWeight: 700,
-                    color: '#2F66F6',
-                    border: '1px solid #2C2C2E',
-                  },
-                  children: 'M',
+                  src: iconUri,
+                  width: 52,
+                  height: 52,
+                  style: { borderRadius: '12px' },
                 },
-              },
+              }] : []),
               {
                 type: 'div',
                 props: {
@@ -121,14 +118,14 @@ async function generateOGImage(referralCode, username) {
                     {
                       type: 'div',
                       props: {
-                        style: { fontSize: '24px', fontWeight: 700, color: '#FFFFFF' },
+                        style: { fontSize: '22px', fontWeight: 700, color: '#FFFFFF' },
                         children: 'Mine',
                       },
                     },
                     {
                       type: 'div',
                       props: {
-                        style: { fontSize: '16px', color: '#8E8E93', fontWeight: 400 },
+                        style: { fontSize: '14px', color: '#8E8E93', fontWeight: 400 },
                         children: 'by Offline Protocol',
                       },
                     },
@@ -155,33 +152,63 @@ async function generateOGImage(referralCode, username) {
         },
         // Spacer
         { type: 'div', props: { style: { flex: 1 } } },
-        // Bottom row: feature pills + referral code
+        // Bottom row: feature icons with labels + referral code
         {
           type: 'div',
           props: {
             style: {
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '16px',
             },
             children: [
-              // Feature pills
+              // Feature items with icon + label
               ...[
-                { label: 'Mesh', color: '#2F66F6' },
-                { label: 'Missions', color: '#32D74B' },
-                { label: 'Points', color: '#00F0FF' },
+                { label: 'Mesh', color: '#2F66F6', bgColor: 'rgba(47, 102, 246, 0.12)', icon: ICONS.globe },
+                { label: 'Missions', color: '#32D74B', bgColor: 'rgba(50, 215, 75, 0.12)', icon: ICONS.flag },
+                { label: 'Points', color: '#00F0FF', bgColor: 'rgba(0, 240, 255, 0.12)', icon: ICONS.diamond },
               ].map(f => ({
                 type: 'div',
                 props: {
                   style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                     backgroundColor: '#1E1E1E',
-                    borderRadius: '8px',
-                    padding: '8px 20px',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    color: f.color,
+                    borderRadius: '10px',
+                    padding: '10px 16px',
                   },
-                  children: f.label,
+                  children: [
+                    {
+                      type: 'div',
+                      props: {
+                        style: {
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          backgroundColor: f.bgColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        },
+                        children: {
+                          type: 'img',
+                          props: {
+                            src: `data:image/svg+xml;base64,${Buffer.from(f.icon).toString('base64')}`,
+                            width: 16,
+                            height: 16,
+                          },
+                        },
+                      },
+                    },
+                    {
+                      type: 'div',
+                      props: {
+                        style: { fontSize: '15px', fontWeight: 600, color: f.color },
+                        children: f.label,
+                      },
+                    },
+                  ],
                 },
               })),
               // Spacer
@@ -194,16 +221,16 @@ async function generateOGImage(referralCode, username) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    backgroundColor: 'rgba(47, 102, 246, 0.1)',
-                    border: '1px solid rgba(47, 102, 246, 0.2)',
+                    backgroundColor: 'rgba(47, 102, 246, 0.08)',
+                    border: '1px solid rgba(47, 102, 246, 0.15)',
                     borderRadius: '10px',
-                    padding: '8px 18px',
+                    padding: '10px 18px',
                   },
                   children: [
                     {
                       type: 'span',
                       props: {
-                        style: { fontSize: '13px', color: '#8E8E93', fontWeight: 500 },
+                        style: { fontSize: '12px', color: '#8E8E93', fontWeight: 500 },
                         children: 'CODE',
                       },
                     },
@@ -211,7 +238,7 @@ async function generateOGImage(referralCode, username) {
                       type: 'span',
                       props: {
                         style: {
-                          fontSize: '20px',
+                          fontSize: '18px',
                           fontWeight: 700,
                           color: '#2F66F6',
                           letterSpacing: '2px',
@@ -225,30 +252,17 @@ async function generateOGImage(referralCode, username) {
             ],
           },
         },
-        // Bottom accent bar
-        {
-          type: 'div',
-          props: {
-            style: {
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '4px',
-              background: 'linear-gradient(90deg, #2F66F6, #4FFFA8, #00F0FF)',
-            },
-          },
-        },
       ],
     },
   };
 
-  const svg = await satori(markup, {
+  const satoriFunc = await getSatori();
+  const svg = await satoriFunc(markup, {
     width: 1200,
     height: 630,
     fonts: [
-      { name: 'Inter', data: bold, weight: 700, style: 'normal' },
-      { name: 'Inter', data: regular, weight: 400, style: 'normal' },
+      { name: 'Inter', data: fontBold, weight: 700, style: 'normal' },
+      { name: 'Inter', data: fontRegular, weight: 400, style: 'normal' },
     ],
   });
 
