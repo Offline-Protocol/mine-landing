@@ -50,7 +50,9 @@ app.get('/download', async (req, res) => {
   }
 
   // Desktop — show referral landing page with referrer info
-  const referrerUsername = await lookupReferrer(ref);
+  // Username can come from ?u= param (set by app when sharing) or API lookup
+  const usernameParam = req.query.u || null;
+  const referrerUsername = usernameParam || await lookupReferrer(ref);
   const html = buildReferralPage(ref, referrerUsername);
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
