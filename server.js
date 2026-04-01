@@ -58,8 +58,15 @@ app.get('/download', async (req, res) => {
   res.send(html);
 });
 
-// Serve static files (index.html, etc.)
-app.use(express.static('public'));
+// Root — same as /download (no referral)
+app.get('/', (req, res) => {
+  const html = buildReferralPage(null, null);
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+// Serve static files (.well-known, icon, etc. — but not index.html)
+app.use(express.static('public', { index: false }));
 
 app.listen(PORT, () => {
   console.log(`mine-landing running on port ${PORT}`);
