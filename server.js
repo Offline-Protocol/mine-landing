@@ -1,5 +1,7 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const { marked } = require('marked');
 const { buildReferralPage, escapeHtml } = require('./lib/referral-page');
 const { generateOGImage } = require('./api/og-image');
 
@@ -72,6 +74,58 @@ app.get('/api/og', async (req, res) => {
     console.error('OG image error:', err);
     res.status(500).send('Failed to generate image');
   }
+});
+
+// Legal pages
+function renderLegalPage(title, mdFile) {
+  const md = fs.readFileSync(path.join(__dirname, 'legal', mdFile), 'utf8');
+  const html = marked(md);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} — Mine by Offline Protocol</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; background: #000; color: #fff; }
+    .container { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+    .back { display: inline-block; color: #2F66F6; text-decoration: none; font-size: 14px; margin-bottom: 24px; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    h2 { font-size: 20px; font-weight: 700; margin-top: 32px; margin-bottom: 12px; border-bottom: 1px solid #1E1E1E; padding-bottom: 8px; }
+    h3 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+    p { font-size: 15px; line-height: 1.7; color: #ccc; margin-bottom: 12px; }
+    strong { color: #fff; }
+    ul, ol { margin: 12px 0; padding-left: 24px; color: #ccc; }
+    li { margin-bottom: 6px; font-size: 15px; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+    th { text-align: left; padding: 8px; background: #1E1E1E; color: #fff; font-weight: 600; border: 1px solid #2C2C2E; }
+    td { padding: 8px; border: 1px solid #2C2C2E; color: #ccc; vertical-align: top; }
+    a { color: #2F66F6; }
+    hr { border: none; border-top: 1px solid #1E1E1E; margin: 24px 0; }
+    code { background: #1E1E1E; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #1E1E1E; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    pre code { background: none; padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Mine</a>
+    ${html}
+  </div>
+</body>
+</html>`;
+}
+
+app.get('/privacy', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(renderLegalPage('Privacy Policy', 'privacy.md'));
+});
+
+app.get('/terms', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(renderLegalPage('Terms of Service', 'terms.md'));
 });
 
 // Root — same as /download (no referral)
